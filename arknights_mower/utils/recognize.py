@@ -1,7 +1,7 @@
 import numpy as np
 import cv2
 
-from ..__init__ import __rootdir__
+from .. import __rootdir__
 from . import config, detector
 from .log import logger, save_screenshot
 from .scene import Scene, SceneComment
@@ -99,6 +99,8 @@ class Recognizer(object):
             self.scene = Scene.INFRA_DETAILS
         elif self.find('friend_list') is not None:
             self.scene = Scene.FRIEND_LIST_OFF
+        elif self.find("mission_trainee_on") is not None:
+            self.scene = Scene.MISSION_TRAINEE
         elif self.find('mission_daily_on') is not None:
             self.scene = Scene.MISSION_DAILY
         elif self.find('mission_weekly_on') is not None:
@@ -110,6 +112,10 @@ class Recognizer(object):
         elif self.find('recruiting_instructions') is not None:
             self.scene = Scene.RECRUIT_TAGS
         elif self.find('agent_token') is not None:
+            self.scene = Scene.RECRUIT_AGENT
+        elif self.find('agent_token_1080_1440') is not None:
+            self.scene = Scene.RECRUIT_AGENT
+        elif self.find('agent_token_900_1440') is not None:
             self.scene = Scene.RECRUIT_AGENT
         elif self.find('agent_unlock') is not None:
             self.scene = Scene.SHOP_CREDIT

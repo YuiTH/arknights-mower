@@ -1,8 +1,9 @@
+from __future__ import annotations
+
 import time
 import schedule as sd
-from typing import List
 
-from .__init__ import __version__
+from . import __version__
 from .solvers import *
 from .utils import config
 from .utils.log import logger
@@ -13,7 +14,7 @@ class ParamError(ValueError):
     """ 参数错误 """
 
 
-def mail(args: List[str] = [], device: Device = None):
+def mail(args: list[str] = [], device: Device = None):
     """
     mail
         自动收取邮件
@@ -21,7 +22,7 @@ def mail(args: List[str] = [], device: Device = None):
     MailSolver(device).run()
 
 
-def base(args: List[str] = [], device: Device = None):
+def base(args: list[str] = [], device: Device = None):
     """
     base [plan] [-c] [-d[F][N]]
         自动处理基建的信赖/货物/订单/线索/无人机
@@ -29,8 +30,8 @@ def base(args: List[str] = [], device: Device = None):
         -c 是否自动使用线索
         -d 是否自动消耗无人机，F 表示第几层（1-3），N 表示从左往右第几个房间（1-3），仅支持制造站
     """
-    clue_collect = config.BASE_CONSTRUCT_CLUE
-    drone_room = config.BASE_CONSTRUCT_DRONE
+    clue_collect = False
+    drone_room = None
     arrange = None
 
     try:
@@ -50,7 +51,7 @@ def base(args: List[str] = [], device: Device = None):
     BaseConstructSolver(device).run(clue_collect, drone_room, arrange)
 
 
-def credit(args: List[str] = [], device: Device = None):
+def credit(args: list[str] = [], device: Device = None):
     """
     credit
         自动访友获取信用点
@@ -58,7 +59,7 @@ def credit(args: List[str] = [], device: Device = None):
     CreditSolver(device).run()
 
 
-def shop(args: List[str] = [], device: Device = None):
+def shop(args: list[str] = [], device: Device = None):
     """
     shop [items ...]
         自动前往商店消费信用点
@@ -70,7 +71,7 @@ def shop(args: List[str] = [], device: Device = None):
         ShopSolver(device).run(args)
 
 
-def recruit(args: List[str] = [], device: Device = None):
+def recruit(args: list[str] = [], device: Device = None):
     """
     recruit [agents ...]
         自动进行公共招募
@@ -82,7 +83,7 @@ def recruit(args: List[str] = [], device: Device = None):
         RecruitSolver(device).run(args)
 
 
-def mission(args: List[str] = [], device: Device = None):
+def mission(args: list[str] = [], device: Device = None):
     """
     mission
         收集每日任务和每周任务奖励
@@ -90,7 +91,7 @@ def mission(args: List[str] = [], device: Device = None):
     MissionSolver(device).run()
 
 
-def operation(args: List[str] = [], device: Device = None):
+def operation(args: list[str] = [], device: Device = None):
     """
     operation [level] [n] [-r[N]] [-R[N]] [-e]
         自动进行作战，可指定次数或直到理智不足
@@ -101,11 +102,11 @@ def operation(args: List[str] = [], device: Device = None):
         -e 是否优先处理未完成的每周剿灭
     """
     level = None
-    times = config.OPE_TIMES
-    potion = config.OPE_POTION
-    originite = config.OPE_ORIGINITE
-    eliminate = config.OPE_ELIMINATE
-    plan = config.OPE_PLAN
+    times = -1
+    potion = 0
+    originite = 0
+    eliminate = False
+    plan = config.OPE_PLAN  # TODO
 
     try:
         for p in args:
@@ -136,7 +137,7 @@ def operation(args: List[str] = [], device: Device = None):
     config.update_ope_plan(remain_plan)
 
 
-def version(args: List[str] = [], device: Device = None):
+def version(args: list[str] = [], device: Device = None):
     """
     version
         输出版本信息
@@ -144,7 +145,7 @@ def version(args: List[str] = [], device: Device = None):
     print(f'arknights-mower: version: {__version__}')
 
 
-def help(args: List[str] = [], device: Device = None):
+def help(args: list[str] = [], device: Device = None):
     """
     help
         输出本段消息
@@ -162,12 +163,11 @@ def help(args: List[str] = [], device: Device = None):
     print(f'    --config filepath\n        指定配置文件，默认使用 {config.PATH}')
 
 
-def schedule(args: List[str] = [], device: Device = None):
+def schedule(args: list[str] = [], device: Device = None):
     """
     schedule
         执行配置文件中的计划任务
     """
-
     if config.SCHEDULE_PLAN is not None:
         sd.every().hour.do(task, tag='per_hour', device=device)
         for tag in config.SCHEDULE_PLAN.keys():
@@ -184,7 +184,6 @@ def schedule(args: List[str] = [], device: Device = None):
 
 def task(tag: str = 'start_up', device: Device = None):
     """ run single task """
-
     plan = config.SCHEDULE_PLAN.get(tag)
     if plan is not None:
         for args in plan:
@@ -206,9 +205,8 @@ global_cmds = [base, credit, mail, mission, shop,
                recruit, operation, version, help, schedule]
 
 
-def match_cmd(prefix: str, avail_cmds: List[str] = global_cmds):
+def match_cmd(prefix: str, avail_cmds: list[str] = global_cmds):
     """ match command """
-
     target_cmds = [x for x in avail_cmds if x.__name__.startswith(prefix)]
     if len(target_cmds) == 1:
         return target_cmds[0]

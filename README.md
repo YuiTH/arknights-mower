@@ -9,6 +9,7 @@
 [![PyPI - Python Version](https://img.shields.io/pypi/pyversions/arknights-mower?style=flat-square)](https://pypi.org/project/arknights-mower/)
 [![GitHub Workflow Status](https://img.shields.io/github/workflow/status/Konano/arknights-mower/Upload%20PyPI?style=flat-square)](https://github.com/Konano/arknights-mower/actions/workflows/python-publish.yml)
 ![GitHub last commit (branch)](https://img.shields.io/github/last-commit/Konano/arknights-mower/main?style=flat-square)
+![Code Climate maintainability](https://img.shields.io/codeclimate/maintainability/Konano/arknights-mower?style=flat-square)
 
 7*24 小时不间断长草，让你忘掉这个游戏！
 
@@ -265,7 +266,7 @@ Solver().base(arrange=plan)
 
 ## 常见问题 Q&A
 
-- 提示 `ADB Server 未开启。请运行 adb server 以启动 ADB Server。`：需要自行启动 ADB，夜神模拟器自带的 ADB 在崩溃后也会出现这一错误提示，重启模拟器有几率解决这一问题。
+- <del>提示 `ADB Server 未开启。请运行 adb server 以启动 ADB Server。`：需要自行启动 ADB，夜神模拟器自带的 ADB 在崩溃后也会出现这一错误提示，重启模拟器有几率解决这一问题。</del>
 - 大量出现 `识别出了点小差错` 并卡死在特定界面：当前版本非 1080p（1920x1080）分辨率下有些界面的识别可能出现错误，将模拟器修改为 1080p 分辨率可以解决大部分问题。如果分辨率修改并未解决问题，请在 Issue 页面提出。
 
 ## 遇到报错？想要更多功能？

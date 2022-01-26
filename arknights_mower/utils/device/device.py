@@ -1,4 +1,6 @@
-from typing import Union, Tuple, List
+from __future__ import annotations
+
+from typing import Optional
 
 from .client import Client
 from .minitouch import MiniTouch
@@ -20,7 +22,7 @@ class Device(object):
         self.client = Client(self.device_id, self.connect)
         self.minitouch = MiniTouch(self.client, self.touch_device)
 
-    def run(self, cmd: str) -> Union[None, bytes]:
+    def run(self, cmd: str) -> Optional[bytes]:
         return self.client.run(cmd)
 
     def launch(self, app: str) -> None:
@@ -54,17 +56,14 @@ class Device(object):
         line = self.run(command).decode('utf8')
         return line.strip()[:-1].split(' ')[-1]
 
-    def tap(self, point: Tuple[int, int]) -> None:
+    def tap(self, point: tuple[int, int]) -> None:
         """ tap """
         logger.debug(f'tap: {point}')
         self.minitouch.tap([point])
 
-    def swipe(self, points: List[Tuple[int, int]], duration: int = 100, smooth: bool = False) -> None:
+    def swipe(self, points: list[tuple[int, int]], duration: int = 100, part: int = 10) -> None:
         """ swipe """
         logger.debug(f'swipe: {points}')
         points_num = len(points)
         duration //= points_num - 1
-        if smooth:
-            self.minitouch.smooth_swipe(points, duration=duration)
-        else:
-            self.minitouch.swipe(points, duration=duration)
+        self.minitouch.smooth_swipe(points, duration=duration, part=part)
