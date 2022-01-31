@@ -1,3 +1,5 @@
+# agents list in Arknights
+
 agent_list = [
     'Lancet-2',
     'Castle-3',
@@ -214,5 +216,11 @@ agent_list = [
     '斯卡蒂',
     '灵知',
     '极光',
-    '耶拉'
+    '耶拉',
+    '九色鹿',
+    '暮落',
+    '令',
+    '老鲤',
+    '夜半',
+    '寒芒克洛丝'
 ]
