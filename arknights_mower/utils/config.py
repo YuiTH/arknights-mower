@@ -14,6 +14,9 @@ from .. import __rootdir__, __system__, __pyinstall__
 yaml = ruamel.yaml.YAML()
 __ydoc = None
 
+BASE_CONSTRUCT_PLAN: dict[str, tp.BasePlan]
+OPE_PLAN: list[tp.OpePlan]
+
 
 def __dig_mapping(path: str):
     path = path.split('/')
@@ -74,7 +77,7 @@ def build_config(path: str, module: bool) -> None:
 def load_config(path: str) -> None:
     """ load config from PATH """
     global __ydoc, PATH
-    PATH = path
+    PATH = Path(path)
     with PATH.open('r', encoding='utf8') as f:
         __ydoc = yaml.load(f)
     init_config()
@@ -126,16 +129,14 @@ def init_config() -> None:
     global OCR_APIKEY
     OCR_APIKEY = __get('ocr/ocr_space_api', 'c7431c9d7288957')
 
-    global BASE_CONSTRUCT_PLAN, BASE_CONSTRUCT_CLUE, BASE_CONSTRUCT_DRONE
+    global BASE_CONSTRUCT_PLAN
     BASE_CONSTRUCT_PLAN = __get('arrangement', None)
-    BASE_CONSTRUCT_CLUE = __get('base_construct/clue_collect', False)
-    BASE_CONSTRUCT_DRONE = __get('base_construct/drone_room', None)
 
     global SCHEDULE_PLAN
     SCHEDULE_PLAN = __get('schedule', None)
 
     global RECRUIT_PRIORITY, SHOP_PRIORITY
-    RECRUIT_PRIORITY = __get('priority/recruit', ['火神', '因陀罗'])
+    RECRUIT_PRIORITY = __get('priority/recruit', None)
     SHOP_PRIORITY = __get('priority/shop', None)
 
     global OPE_TIMES, OPE_POTION, OPE_ORIGINITE, OPE_ELIMINATE, OPE_PLAN
@@ -149,12 +150,13 @@ def init_config() -> None:
         OPE_PLAN = [[x[0], int(x[1])] for x in OPE_PLAN]
 
 
-def update_ope_plan(plan: list[tp.Plan]) -> None:
+def update_ope_plan(plan: list[tp.OpePlan]) -> None:
     """ update operation plan """
     global OPE_PLAN
     OPE_PLAN = plan
     print([f'{x[0]},{x[1]}' for x in OPE_PLAN])
     __set('operation/plan', [f'{x[0]},{x[1]}' for x in OPE_PLAN])
+    # TODO 其他参数也应该更新
     save_config()
 
 
@@ -190,7 +192,7 @@ def init_adb_buildin() -> Path:
     elif __system__ == 'windows':
         ADB_BUILDIN_DIR = Path.home().joinpath('arknights-mower/adb-buildin')
     elif __system__ == 'linux':
-        ADB_BUILDIN_DIR = Path.home().joinpath('.arknights-mower')    
+        ADB_BUILDIN_DIR = Path.home().joinpath('.arknights-mower')
     elif __system__ == 'darwin':
         ADB_BUILDIN_DIR = Path.home().joinpath('.arknights-mower')
     else:
