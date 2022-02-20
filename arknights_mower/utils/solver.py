@@ -26,10 +26,7 @@ class BaseSolver:
             raise RuntimeError
         self.device = device if device is not None else Device()
         self.recog = recog if recog is not None else Recognizer(self.device)
-        if self.device.current_focus() != config.APPNAME:
-            self.device.launch(config.APPNAME)
-            # wait for app to finish launching
-            time.sleep(10)
+        self.device.check_current_focus()
 
     def run(self) -> None:
         retry_times = config.MAX_RETRYTIME
@@ -147,7 +144,8 @@ class BaseSolver:
             points.append((start[0], start[1]+100))
             points.append((start[0]+movement[0], start[1]+100))
             points.append((start[0]+movement[0], start[1]))
-        self.device.minitouch.smooth_swipe(points, duration=[200, dis*duration//100, 200])
+        self.device.minitouch.smooth_swipe(points, display_frames=self.device.display_frames(),
+                                           duration=[200, dis*duration//100, 200], up_wait=500)
         if interval > 0:
             self.sleep(interval, rebuild)
 
