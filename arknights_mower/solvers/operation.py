@@ -10,7 +10,7 @@ from ..utils.image import scope2slice
 from ..utils.log import logger
 from ..utils.recognize import Scene, RecognizeError
 from ..utils.solver import BaseSolver, StrategyError
-from ..data.level import level_list, zone_list, theme_list, weekly_zones
+from ..data import chapter_list, weekly_zones, level_list, zone_list
 
 
 BOTTOM_TAP_NUMER = 8
@@ -68,7 +68,8 @@ class OpeSolver(BaseSolver):
         self.wait_start = 0  # 作战时第一次等待的时长
         self.wait_total = 0  # 作战时累计等待的时长
         self.level_choosed = plan[0][0] == 'pre_ope'  # 是否已经选定关卡
-        self.unopen = []
+        self.unopen = []  # 未开放的关卡
+        self.failed = False  # 作战代理是否正常运作
 
         logger.info('Start: 作战')
         logger.debug(f'plan: {plan}')
@@ -104,14 +105,20 @@ class OpeSolver(BaseSolver):
             self.ope_finish()
         elif self.scene() == Scene.OPERATOR_ELIMINATE_FINISH:
             self.ope_finish_elimi()
-        elif self.scene() == Scene.OPERATOR_GIVEUP:
+        elif self.scene() == Scene.OPERATOR_GIVEUP:  # TODO 得找个稳定复现代理三星变两星的地图
             logger.error('代理出现失误')
             return True
+        elif self.scene() == Scene.OPERATOR_FAILED:
+            logger.error('代理出现失误')
+            self.failed = True
+            self.tap((self.recog.w // 2, 10))
         elif self.scene() == Scene.OPERATOR_RECOVER_POTION:
             return self.recover_potion()
         elif self.scene() == Scene.OPERATOR_RECOVER_ORIGINITE:
             return self.recover_originite()
         elif self.scene() == Scene.LOADING:
+            self.sleep(3)
+        elif self.scene() == Scene.CONNECTING:
             self.sleep(3)
         elif self.scene() == Scene.UPGRADE:
             self.tap_element('upgrade')
@@ -122,7 +129,7 @@ class OpeSolver(BaseSolver):
         elif self.scene() != Scene.UNKNOWN:
             self.back_to_index()
         else:
-            raise RecognizeError('Unanticipated scene: Operation')
+            raise RecognizeError('Unknown scene')
 
     def terminal_main(self) -> bool:
         eliminate_todo = self.find('terminal_eliminate')
@@ -151,6 +158,9 @@ class OpeSolver(BaseSolver):
             self.get_navigation()
             self.tap_element('nav_terminal')
             return
+        # 代理出现过失误，终止作战
+        if self.failed:
+            return True
         # 激活代理作战
         agency = self.find('ope_agency')
         if agency is not None:
@@ -160,6 +170,7 @@ class OpeSolver(BaseSolver):
         if self.wait_pre != 10:
             self.wait_start = 0
             self.wait_pre = 10
+        self.wait_total = 0
         # 点击开始作战
         self.tap_element('ope_start')
         # 确定可以开始作战后扣除相应的消耗药剂或者源石
@@ -181,6 +192,9 @@ class OpeSolver(BaseSolver):
         if self.eliminate_state == 2:
             logger.warning('检测到关卡为剿灭，但每周剿灭任务已完成')
             return True
+        # 代理出现过失误，终止作战
+        if self.failed:
+            return True
         # 激活代理作战
         agency = self.find('ope_agency')
         if agency is not None:
@@ -190,6 +204,7 @@ class OpeSolver(BaseSolver):
         if self.wait_pre != 60:
             self.wait_start = 0
             self.wait_pre = 60
+        self.wait_total = 0
         # 点击开始作战
         self.tap_element('ope_start')
         # 确定可以开始作战后扣除相应的消耗药剂或者源石
@@ -243,14 +258,18 @@ class OpeSolver(BaseSolver):
                 self.tap_element('ope_recover_originite')
                 return
             # 关闭恢复界面
-            self.tap_element('ope_recover_choose', 0.05)
+            if not self.tap_element('ope_recover_choose', 0.05, detected=True):
+                self.back()
             return True
         elif self.recover_state:
             # 正在恢复中，防止网络波动
             self.sleep(3)
         else:
             # 选择药剂恢复体力
-            self.tap_element('ope_recover_choose', 0.95)
+            if not self.tap_element('ope_recover_choose', 0.95, detected=True):
+                # 使用次数未归零但已经没有药剂可以恢复体力了
+                self.potion = 0
+                return
             # 修改状态
             self.recover_state = 1
 
@@ -261,14 +280,18 @@ class OpeSolver(BaseSolver):
                 self.tap_element('ope_recover_potion')
                 return
             # 关闭恢复界面
-            self.tap_element('ope_recover_choose', 0.05)
+            if not self.tap_element('ope_recover_choose', 0.05, detected=True):
+                self.back()
             return True
         elif self.recover_state:
             # 正在恢复中，防止网络波动
             self.sleep(3)
         else:
             # 选择源石恢复体力
-            self.tap_element('ope_recover_choose', 0.95)
+            if not self.tap_element('ope_recover_choose', 0.95, detected=True):
+                # 使用次数未归零但已经没有源石可以恢复体力了
+                self.originite = 0
+                return
             # 修改状态
             self.recover_state = 2
 
@@ -288,23 +311,23 @@ class OpeSolver(BaseSolver):
         zone_name = level_list[level]['zone_id']
         zone = zone_list[zone_name]
         logger.info(f'关卡：{level}')
-        logger.info(f'章节：{zone[0]}')
+        logger.info(f'章节：{zone["name"]}')
 
         # 识别导航栏，辅助识别章节
         scope = self.recog.nav_button()
         scope[1][1] = self.recog.h
 
         # 选择章节/区域
-        if zone[1] == 0:
+        if zone['type'] == 'MAINLINE':
             self.switch_bottom(1)
             self.choose_zone_theme(zone, scope)
-        elif zone[1] == 1:
+        elif zone['type'] == 'BRANCHLINE':
             self.switch_bottom(2)
             self.choose_zone_supple(zone, scope)
-        elif zone[1] == 2:
+        elif zone['type'] == 'SIDESTORY':
             self.switch_bottom(3)
             self.choose_zone_supple(zone, scope)
-        elif zone[1] == 3:
+        elif zone['type'] == 'WEEKLY':
             self.switch_bottom(4)
             self.choose_zone_resource(zone)
         else:
@@ -317,8 +340,8 @@ class OpeSolver(BaseSolver):
         retry_times = 3
         while level not in levels:
             _levels = levels
-            self.swipe_noinertia((self.recog.w // 4, self.recog.h // 4),
-                                 (self.recog.w // 16, 0))
+            self.swipe_noinertia((self.recog.w // 2, self.recog.h // 4),
+                                 (self.recog.w // 3, 0), 20)
             ocr, levels = self.ocr_level()
             if _levels == levels:
                 retry_times -= 1
@@ -331,8 +354,8 @@ class OpeSolver(BaseSolver):
         retry_times = 3
         while level not in levels:
             _levels = levels
-            self.swipe_noinertia((self.recog.w // 4, self.recog.h // 4),
-                                 (-self.recog.w // 16, 0))
+            self.swipe_noinertia((self.recog.w // 2, self.recog.h // 4),
+                                 (-self.recog.w // 3, 0), 20)
             ocr, levels = self.ocr_level()
             if _levels == levels:
                 retry_times -= 1
@@ -355,19 +378,19 @@ class OpeSolver(BaseSolver):
 
     def choose_zone_theme(self, zone: list, scope: tp.Scope) -> None:
         """ 识别主题曲区域 """
-        # 定位 Action 编号
+        # 定位 Chapter 编号
         ocr = []
         act_id = 999
-        while act_id != zone[2]:
+        while act_id != zone['chapterIndex']:
             _act_id = act_id
             act_id = -1
             for x in ocr:
-                if zone[2] < _act_id:
-                    if x[1].upper().replace(' ', '') == theme_list[_act_id-1]:
+                if zone['chapterIndex'] < _act_id:
+                    if x[1].upper().replace(' ', '') == chapter_list[_act_id-1].replace(' ', ''):
                         self.tap(x[2])
                         break
                 else:
-                    if x[1].upper().replace(' ', '') == theme_list[_act_id+1]:
+                    if x[1].upper().replace(' ', '') == chapter_list[_act_id+1].replace(' ', ''):
                         self.tap(x[2])
                         break
             ocr = ocrhandle.predict(self.recog.img[scope2slice(scope)])
@@ -375,7 +398,7 @@ class OpeSolver(BaseSolver):
                 if x[1][:7].upper() == 'EPISODE' and len(x[1]) == 9:
                     try:
                         episode = int(x[1][-2:])
-                        act_id = zone_list[f'main_{episode}'][2]
+                        act_id = zone_list[f'main_{episode}']['chapterIndex']
                         break
                     except Exception:
                         raise RecognizeError('Unknown episode')
@@ -384,57 +407,83 @@ class OpeSolver(BaseSolver):
 
         # 定位 Episode 编号
         cover = self.find(f'main_{episode}')
-        while zone[3] < episode:
+        while zone['zoneIndex'] < episode:
             self.swipe_noinertia((cover[0][0], cover[0][1]),
-                                 (cover[1][0] - cover[0][0], 0), 200)
+                                 (cover[1][0] - cover[0][0], 0))
             episode -= 1
-        while episode < zone[3]:
+        while episode < zone['zoneIndex']:
             self.swipe_noinertia((cover[1][0], cover[0][1]),
-                                 (cover[0][0] - cover[1][0], 0), 200)
+                                 (cover[0][0] - cover[1][0], 0))
             episode += 1
         self.tap(cover)
 
     def choose_zone_supple(self, zone: list, scope: tp.Scope) -> None:
         """ 识别别传/插曲区域 """
-        ocr = ocrhandle.predict(self.recog.img[scope2slice(scope)])
-        for x in ocr:
-            if x[1] == zone[0]:
-                self.tap(x[2])
-        self.tap_element('enter')
-        # TODO 别传现在长度已经超过了屏幕，需要多次滑动查找
+        try_times = 5
+        zoneIndex = {}
+        for x in zone_list.values():
+            zoneIndex[x['name'].replace('·', '')] = x['zoneIndex']
+        while try_times:
+            try_times -= 1
+            ocr = ocrhandle.predict(self.recog.img[scope2slice(scope)])
+            zones = set()
+            for x in ocr:
+                if x[1] in zoneIndex.keys():
+                    zones.add(zoneIndex[x[1]])
+            logger.debug(zones)
+            if zone['zoneIndex'] in zones:
+                for x in ocr:
+                    if x[1] == zone['name'].replace('·', ''):
+                        self.tap(x[2])
+                        self.tap_element('enter')
+                        return
+                raise RecognizeError
+            else:
+                st, ed = None, None
+                for x in ocr:
+                    if x[1] in zoneIndex.keys() and zoneIndex[x[1]] == min(zones):
+                        ed = x[2][0]
+                    elif x[1] in zoneIndex.keys() and zoneIndex[x[1]] == max(zones):
+                        st = x[2][0]
+                logger.debug((st, ed))
+                self.swipe_noinertia(st, (0, ed[1]-st[1]))
 
     def choose_zone_resource(self, zone: list) -> None:
         """ 识别资源收集区域 """
         ocr = ocrhandle.predict(self.recog.img)
-        unable = list(filter(lambda x: x[1] == '不可进入', ocr))
+        unable = list(filter(lambda x: x[1] in ['不可进入', '本日16:00开启'], ocr))
         ocr = list(filter(lambda x: x[1] in weekly_zones, ocr))
         weekly = sorted([x[1] for x in ocr])
-        while zone[0] not in weekly:
+        while zone['name'] not in weekly:
             _weekly = weekly
             self.swipe((self.recog.w // 4, self.recog.h // 4),
                        (self.recog.w // 16, 0))
             ocr = ocrhandle.predict(self.recog.img)
-            unable = list(filter(lambda x: x[1] == '不可进入', ocr))
+            unable = list(filter(lambda x: x[1] in ['不可进入', '本日16:00开启'], ocr))
             ocr = list(filter(lambda x: x[1] in weekly_zones, ocr))
             weekly = sorted([x[1] for x in ocr])
             if _weekly == weekly:
                 break
-        while zone[0] not in weekly:
+        while zone['name'] not in weekly:
             _weekly = weekly
             self.swipe((self.recog.w // 4, self.recog.h // 4),
                        (-self.recog.w // 16, 0))
             ocr = ocrhandle.predict(self.recog.img)
-            unable = list(filter(lambda x: x[1] == '不可进入', ocr))
+            unable = list(filter(lambda x: x[1] in ['不可进入', '本日16:00开启'], ocr))
             ocr = list(filter(lambda x: x[1] in weekly_zones, ocr))
             weekly = sorted([x[1] for x in ocr])
             if _weekly == weekly:
                 break
-        if zone[0] not in weekly:
+        if zone['name'] not in weekly:
             raise RecognizeError('Not as expected')
         for x in ocr:
-            if x[1] == zone[0]:
+            if x[1] == zone['name']:
                 for item in unable:
                     if x[2][0][0] < item[2][0][0] < x[2][1][0]:
                         raise LevelUnopenError
                 self.tap(x[2])
+                ocr = ocrhandle.predict(self.recog.img)
+                unable = list(filter(lambda x: x[1] == '关卡尚未开放', ocr))
+                if len(unable):
+                    raise LevelUnopenError
                 break

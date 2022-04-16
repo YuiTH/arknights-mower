@@ -1,17 +1,21 @@
+import cv2
 import numpy as np
 
 from . import typealias as tp
 from .log import logger
+from .matcher import Matcher
+from .image import loadimg
+from .. import __rootdir__
 
 
 def confirm(img: tp.Image) -> tp.Coordinate:
     """
     检测是否出现确认界面
     """
-    height, weight, _ = img.shape
+    height, width, _ = img.shape
 
     # 4 scan lines: left, right, up, down
-    left, right = weight // 4 * 3 - 10, weight // 4 * 3 + 10
+    left, right = width // 4 * 3 - 10, width // 4 * 3 + 10
     up, down = height // 2 - 10, height // 2 + 10
 
     # the R/G/B must be the same for a single pixel in the specified area
@@ -48,7 +52,7 @@ def confirm(img: tp.Image) -> tp.Coordinate:
         return None
 
     # detect successful
-    point = (weight // 2, (up + down) // 2)
+    point = (width // 2, (up + down) // 2)
     logger.debug(f'detector.confirm: {point}')
     return point
 
@@ -58,10 +62,10 @@ def infra_notification(img: tp.Image) -> tp.Coordinate:
     检测基建内是否存在蓝色通知
     前置条件：已经处于基建内
     """
-    height, weight, _ = img.shape
+    height, width, _ = img.shape
 
     # set a new scan line: right
-    right = weight
+    right = width
     while np.max(img[:, right-1]) < 100:
         right -= 1
     right -= 1
@@ -94,11 +98,11 @@ def announcement_close(img: tp.Image) -> tp.Coordinate:
     """
     检测「关闭公告」按钮
     """
-    height, weight, _ = img.shape
+    height, width, _ = img.shape
 
     # 4 scan lines: left, right, up, down
     up, down = 0, height // 4
-    left, right = weight // 4 * 3, weight
+    left, right = width // 4 * 3, width
 
     sumx, sumy, cnt = 0, 0, 0
     for i in range(up, down):
@@ -128,10 +132,10 @@ def visit_next(img: tp.Image) -> tp.Coordinate:
     """
     检测「访问下位」按钮
     """
-    height, weight, _ = img.shape
+    height, width, _ = img.shape
 
     # set a new scan line: right
-    right = weight
+    right = width
     while np.max(img[:, right-1]) < 100:
         right -= 1
     right -= 1
@@ -158,3 +162,23 @@ def visit_next(img: tp.Image) -> tp.Coordinate:
     point = (right - 10, (up + down) // 2)
     logger.debug(f'detector.visit_next: {point}')
     return point
+
+
+on_shift = loadimg(f'{__rootdir__}/resources/agent_on_shift.png', True)
+distracted = loadimg(f'{__rootdir__}/resources/distracted.png', True)
+
+
+def is_on_shift(img: tp.Image) -> bool:
+    """
+    检测干员是否正在工作中
+    """
+    matcher = Matcher(cv2.cvtColor(img, cv2.COLOR_RGB2GRAY))
+    if matcher.match(on_shift, judge=False) is not None:
+        return True
+    if matcher.match(distracted, judge=False) is not None:
+        return False
+    width = img.shape[1]
+    __width = int(width * 0.7)
+    left_up = np.count_nonzero(np.all(img[0, :__width] <= 62, axis=1) & np.all(30 <= img[0, :__width], axis=1)) / __width
+    logger.debug(f'is_on_shift: {left_up}')
+    return left_up > 0.3

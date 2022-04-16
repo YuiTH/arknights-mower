@@ -2,7 +2,7 @@ from PIL import Image
 import numpy as np
 import re
 
-from ..data.ocr import ocr_error
+from ..data import ocr_error
 from ..utils.log import logger
 
 
@@ -62,8 +62,6 @@ def fix(s):
     """
     s = re.sub(r'[。？！，、；：“”‘’（）《》〈〉【】『』「」﹃﹄〔〕…～﹏￥－＿]', '', s)
     s = re.sub(r'[\'\"\,\.\(\)]', '', s)
-    # TODO 去除符号
-    # TODO 如果包含汉字，则前面一定是汉字
     if s in ocr_error.keys():
         logger.debug(f'fix with ocr_error: {s} -> {ocr_error[s]}')
         s = ocr_error[s]

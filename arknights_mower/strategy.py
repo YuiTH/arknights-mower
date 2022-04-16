@@ -3,6 +3,7 @@ from __future__ import annotations
 from .solvers import *
 from .utils.device import Device
 from .utils.recognize import Recognizer
+from .utils.solver import BaseSolver
 from .utils import typealias as tp
 
 
@@ -30,7 +31,7 @@ class Solver(object):
 
     def recruit(self, priority: list[str] = None) -> None:
         """
-        :param priority: list[str], 优先考虑的公招干员，默认为火神和因陀罗
+        :param priority: list[str], 优先考虑的公招干员，默认为高稀有度优先
         """
         RecruitSolver(self.device, self.recog).run(priority)
 
@@ -55,3 +56,6 @@ class Solver(object):
 
     def mail(self) -> None:
         MailSolver(self.device, self.recog).run()
+
+    def index(self) -> None:
+        BaseSolver(self.device, self.recog).back_to_index()

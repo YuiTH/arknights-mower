@@ -55,11 +55,16 @@ class Recognizer(object):
         """ get the color of the pixel """
         return self.img[y][x]
 
+    def save_screencap(self, folder):
+        save_screenshot(self.screencap, subdir=f'{folder}/{self.h}x{self.w}')
+
     def get_scene(self) -> int:
         """ get the current scene in the game """
         if self.scene != Scene.UNDEFINED:
             return self.scene
-        if self.find('index_nav', thres=250, scope=((0, 0), (100+self.w//4, self.h//10))) is not None:
+        if self.find('connecting', scope=((self.w//2, self.h//10*8), (self.w//4*3, self.h))) is not None:
+            self.scene = Scene.CONNECTING
+        elif self.find('index_nav', thres=250, scope=((0, 0), (100+self.w//4, self.h//10))) is not None:
             self.scene = Scene.INDEX
         elif self.find('nav_index') is not None:
             self.scene = Scene.NAVIGATION_BAR
@@ -99,6 +104,8 @@ class Recognizer(object):
             self.scene = Scene.OPERATOR_ELIMINATE
         elif self.find('ope_giveup') is not None:
             self.scene = Scene.OPERATOR_GIVEUP
+        elif self.find('ope_failed') is not None:
+            self.scene = Scene.OPERATOR_FAILED
         elif self.find('friend_list_on') is not None:
             self.scene = Scene.FRIEND_LIST_ON
         elif self.find('credit_visiting') is not None:
@@ -113,6 +120,8 @@ class Recognizer(object):
             self.scene = Scene.INFRA_ARRANGE
         elif self.find('hidden_eye', thres=250, scope=((self.w//4*3, self.h//4*3), (self.w, self.h))) is not None:
             self.scene = Scene.INFRA_DETAILS
+        elif self.find('arrange_confirm') is not None:
+            self.scene = Scene.INFRA_ARRANGE_CONFIRM
         elif self.find('friend_list') is not None:
             self.scene = Scene.FRIEND_LIST_OFF
         elif self.find("mission_trainee_on") is not None:
@@ -139,10 +148,14 @@ class Recognizer(object):
             self.scene = Scene.SHOP_OTHERS
         elif self.find('shop_cart') is not None:
             self.scene = Scene.SHOP_CREDIT_CONFIRM
+        elif self.find('shop_assist') is not None:
+            self.scene = Scene.SHOP_ASSIST
         elif self.find('login_awake') is not None:
             self.scene = Scene.LOGIN_QUICKLY
         elif self.find('login_account') is not None:
             self.scene = Scene.LOGIN_MAIN
+        elif self.find('register') is not None:
+            self.scene = Scene.LOGIN_REGISTER
         elif self.find('login_loading') is not None:
             self.scene = Scene.LOGIN_LOADING
         elif self.find('login_iknow') is not None:
@@ -157,8 +170,12 @@ class Recognizer(object):
             self.scene = Scene.UPGRADE
         elif detector.confirm(self.img) is not None:
             self.scene = Scene.CONFIRM
-        elif self.find('login_captcha') is not None:
+        elif self.find('login_verify') is not None:
             self.scene = Scene.LOGIN_INPUT
+        elif self.find('login_captcha') is not None:
+            self.scene = Scene.LOGIN_CAPTCHA
+        elif self.find('login_connecting') is not None:
+            self.scene = Scene.LOGIN_LOADING
         elif self.find('main_theme') is not None:
             self.scene = Scene.TERMINAL_MAIN_THEME
         elif self.find('episode') is not None:
@@ -174,8 +191,7 @@ class Recognizer(object):
             self.device.check_current_focus()
         # save screencap to analyse
         if config.SCREENSHOT_PATH is not None:
-            save_screenshot(
-                self.screencap, subdir=f'{self.scene}/{self.h}x{self.w}')
+            self.save_screencap(self.scene)
         logger.info(f'Scene: {self.scene}: {SceneComment[self.scene]}')
         return self.scene
 
@@ -187,7 +203,7 @@ class Recognizer(object):
         """ find navigation button """
         return self.find('nav_button', thres=128, scope=((0, 0), (100+self.w//4, self.h//10)))
 
-    def find(self, res: str, draw: bool = False, scope: tp.Scope = None, thres: int = None, judge: bool = True) -> tp.Scope:
+    def find(self, res: str, draw: bool = False, scope: tp.Scope = None, thres: int = None, judge: bool = True, strict: bool = False) -> tp.Scope:
         """
         查找元素是否出现在画面中
 
@@ -195,7 +211,8 @@ class Recognizer(object):
         :param draw: 是否将识别结果输出到屏幕
         :param scope: ((x0, y0), (x1, y1))，提前限定元素可能出现的范围
         :param thres: 是否在匹配前对图像进行二值化处理
-        :param judge: 是否假如更加精准的判断
+        :param judge: 是否加入更加精确的判断
+        :param strict: 是否启用严格模式，未找到时报错
 
         :return ret: 若匹配成功，则返回元素在游戏界面中出现的位置，否则返回 None
         """
@@ -212,6 +229,8 @@ class Recognizer(object):
             res_img = loadimg(res, True)
             matcher = self.matcher
             ret = matcher.match(res_img, draw=draw, scope=scope, judge=judge)
+        if strict and ret is None:
+            raise RecognizeError(f"Can't find '{res}'") 
         return ret
 
     # def score(self, item, draw=False, scope=None, thres=None):
