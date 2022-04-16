@@ -36,6 +36,7 @@ class BaseSolver:
                     break
             except RecognizeError as e:
                 logger.warning(f'识别出了点小差错 qwq: {e}')
+                self.recog.save_screencap('failure')
                 retry_times -= 1
                 self.sleep(3)
                 continue
@@ -80,15 +81,18 @@ class BaseSolver:
         time.sleep(interval)
         self.recog.update(rebuild=rebuild)
 
-    def input(self, referent: str, input_area: tp.Scope) -> None:
+    def input(self, referent: str, input_area: tp.Scope, text: str = None) -> None:
         """ input text """
         logger.debug(f'input: {referent} {input_area}')
         self.device.tap(self.get_pos(input_area))
-        self.device.send_text(input(referent).strip())
+        time.sleep(0.5)
+        if text is None:
+            text = input(referent).strip()
+        self.device.send_text(str(text))
         self.device.tap((0, 0))
 
-    def find(self, res: str, draw: bool = False, scope: tp.Scope = None, thres: int = None, judge: bool = True) -> tp.Scope:
-        return self.recog.find(res, draw, scope, thres, judge)
+    def find(self, res: str, draw: bool = False, scope: tp.Scope = None, thres: int = None, judge: bool = True, strict: bool = False) -> tp.Scope:
+        return self.recog.find(res, draw, scope, thres, judge, strict)
 
     def tap(self, poly: tp.Location, x_rate: float = 0.5, y_rate: float = 0.5, interval: float = 1, rebuild: bool = True) -> None:
         """ tap """
@@ -174,14 +178,19 @@ class BaseSolver:
                 elif self.scene() == Scene.LOGIN_QUICKLY:
                     self.tap_element('login_awake')
                 elif self.scene() == Scene.LOGIN_MAIN:
-                    self.tap_element('login_account')
+                    self.tap_element('login_account', 0.25)
+                elif self.scene() == Scene.LOGIN_REGISTER:
+                    self.back(2)
+                elif self.scene() == Scene.LOGIN_CAPTCHA:
+                    exit()
+                    # self.back(600)  # TODO: Pending
                 elif self.scene() == Scene.LOGIN_INPUT:
                     input_area = self.find('login_username')
                     if input_area is not None:
-                        self.input('Enter username: ', input_area)
+                        self.input('Enter username: ', input_area, config.USERNAME)
                     input_area = self.find('login_password')
                     if input_area is not None:
-                        self.input('Enter password: ', input_area)
+                        self.input('Enter password: ', input_area, config.PASSWORD)
                     self.tap_element('login_button')
                 elif self.scene() == Scene.LOGIN_ANNOUNCE:
                     self.tap_element('login_iknow')
@@ -189,12 +198,17 @@ class BaseSolver:
                     self.sleep(3)
                 elif self.scene() == Scene.LOADING:
                     self.sleep(3)
+                elif self.scene() == Scene.CONNECTING:
+                    self.sleep(3)
                 elif self.scene() == Scene.CONFIRM:
                     self.tap(detector.confirm(self.recog.img))
+                elif self.scene() == Scene.UNKNOWN:
+                    raise RecognizeError('Unknown scene')
                 else:
-                    raise RecognizeError('Unanticipated scene: login')
+                    raise RecognizeError('Unanticipated scene')
             except RecognizeError as e:
                 logger.warning(f'识别出了点小差错 qwq: {e}')
+                self.recog.save_screencap('failure')
                 retry_times -= 1
                 self.sleep(3)
                 continue
@@ -223,6 +237,7 @@ class BaseSolver:
         """
         logger.info('back to index')
         retry_times = config.MAX_RETRYTIME
+        pre_scene = None
         while retry_times and self.scene() != Scene.INDEX:
             try:
                 if self.get_navigation():
@@ -236,6 +251,8 @@ class BaseSolver:
                 elif self.scene() == Scene.CONFIRM:
                     self.tap(detector.confirm(self.recog.img))
                 elif self.scene() == Scene.LOADING:
+                    self.sleep(3)
+                elif self.scene() == Scene.CONNECTING:
                     self.sleep(3)
                 elif self.scene() == Scene.SKIP:
                     self.tap_element('skip')
@@ -251,10 +268,18 @@ class BaseSolver:
                     mail = self.find('mail')
                     mid_y = (mail[0][1] + mail[1][1]) // 2
                     self.tap((mid_y, mid_y))
+                elif self.scene() == Scene.INFRA_ARRANGE_CONFIRM:
+                    self.tap((self.recog.w // 3, self.recog.h - 10))
+                elif self.scene() == Scene.UNKNOWN:
+                    raise RecognizeError('Unknown scene')
+                elif pre_scene is None or pre_scene != self.scene():
+                    pre_scene = self.scene()
+                    self.back()
                 else:
-                    raise RecognizeError('Unanticipated scene: back_to_index')
+                    raise RecognizeError('Unanticipated scene')
             except RecognizeError as e:
                 logger.warning(f'识别出了点小差错 qwq: {e}')
+                self.recog.save_screencap('failure')
                 retry_times -= 1
                 self.sleep(3)
                 continue

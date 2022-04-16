@@ -23,7 +23,7 @@ class CreditSolver(BaseSolver):
         elif self.scene() == Scene.FRIEND_LIST_OFF:
             self.tap_element('friend_list')
         elif self.scene() == Scene.FRIEND_LIST_ON:
-            down = self.find('friend_list_on')[1][1]
+            down = self.find('friend_list_on', strict=True)[1][1]
             scope = [(0, 0), (100000, down)]
             if not self.tap_element('friend_visit', scope=scope, detected=True):
                 self.sleep(1)
@@ -38,9 +38,11 @@ class CreditSolver(BaseSolver):
                 return True
         elif self.scene() == Scene.LOADING:
             self.sleep(3)
+        elif self.scene() == Scene.CONNECTING:
+            self.sleep(3)
         elif self.get_navigation():
             self.tap_element('nav_social')
         elif self.scene() != Scene.UNKNOWN:
             self.back_to_index()
         else:
-            raise RecognizeError('Unanticipated scene: Credit')
+            raise RecognizeError('Unknown scene')

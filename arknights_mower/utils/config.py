@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import sys
 import shutil
-import ruamel.yaml
 from typing import Any
 from pathlib import Path
 from collections import Mapping
@@ -10,8 +9,13 @@ from ruamel.yaml.comments import CommentedSeq
 
 from . import typealias as tp
 from .. import __rootdir__, __system__, __pyinstall__
+from .yaml import yaml
 
-yaml = ruamel.yaml.YAML()
+# The lowest version supported
+VERSION_SUPPORTED_MIN = 1
+VERSION_SUPPORTED_MAX = 1
+
+
 __ydoc = None
 
 BASE_CONSTRUCT_PLAN: dict[str, tp.BasePlan]
@@ -80,6 +84,8 @@ def load_config(path: str) -> None:
     PATH = Path(path)
     with PATH.open('r', encoding='utf8') as f:
         __ydoc = yaml.load(f)
+    if not VERSION_SUPPORTED_MIN <= __get('version', 1) <= VERSION_SUPPORTED_MAX:
+        raise RuntimeError('The current version of the config file is not supported')
     init_config()
 
 
@@ -111,18 +117,23 @@ def init_config() -> None:
     COMPATIBILITY_MODE = __get('device/compatibility_mode', False)
 
     global ADB_TOUCH_DEVICE
-    ADB_TOUCH_DEVICE = __get('adb_touch_device', None)
+    ADB_TOUCH_DEVICE = __get('device/adb_touch_device', None)
 
     global ADB_MNT_PORT
-    ADB_MNT_PORT = __get('adb_mnt_port', 20937)
+    ADB_MNT_PORT = __get('device/adb_mnt_port', 20937)
+
+    global USERNAME, PASSWORD
+    USERNAME = __get('account/username', None)
+    PASSWORD = __get('account/password', None)
 
     global APPNAME
     APPNAME = __get('app/package_name', 'com.hypergryph.arknights') + \
         '/' + __get('app/activity_name', 'com.u8.sdk.U8UnityContext')
 
-    global DEBUG_MODE, LOGFILE_PATH, SCREENSHOT_PATH, SCREENSHOT_MAXNUM
+    global DEBUG_MODE, LOGFILE_PATH, LOGFILE_AMOUNT, SCREENSHOT_PATH, SCREENSHOT_MAXNUM
     DEBUG_MODE = __get('debug/enabled', False)
     LOGFILE_PATH = __get('debug/logfile/path', None)
+    LOGFILE_AMOUNT = __get('debug/logfile/amount', 3)
     SCREENSHOT_PATH = __get('debug/screenshot/path', None)
     SCREENSHOT_MAXNUM = __get('debug/screenshot/max_total', 20)
 

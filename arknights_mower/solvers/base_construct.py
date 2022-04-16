@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import numpy as np
 
-from ..utils import detector, segment
+from ..utils import detector, segment, character_recognize
 from ..utils import typealias as tp
 from ..utils.device import Device
 from ..utils.log import logger
 from ..utils.recognize import Recognizer, Scene, RecognizeError
 from ..utils.solver import BaseSolver
-from ..data.base import base_room_list
+from ..data import base_room_list
 
 
 class BaseConstructSolver(BaseSolver):
@@ -44,19 +44,30 @@ class BaseConstructSolver(BaseSolver):
             self.back()
         elif self.scene() == Scene.LOADING:
             self.sleep(3)
+        elif self.scene() == Scene.CONNECTING:
+            self.sleep(3)
         elif self.get_navigation():
             self.tap_element('nav_infrastructure')
         elif self.scene() != Scene.UNKNOWN:
             self.back_to_index()
         else:
-            raise RecognizeError('Unanticipated scene: Base Construction')
+            raise RecognizeError('Unknown scene')
 
     def infra_main(self) -> None:
         """ 位于基建首页 """
         if self.find('control_central') is None:
             self.back()
             return
-        if not self.todo_task:
+        if self.clue_collect:
+            self.clue()
+            self.clue_collect = False
+        elif self.drone_room is not None:
+            self.drone(self.drone_room)
+            self.drone_room = None
+        elif self.arrange is not None:
+            self.agent_arrange(self.arrange)
+            self.arrange = None
+        elif not self.todo_task:
             # 处理基建 Todo
             notification = detector.infra_notification(self.recog.img)
             if notification is None:
@@ -66,15 +77,6 @@ class BaseConstructSolver(BaseSolver):
                 self.tap(notification)
             else:
                 self.todo_task = True
-        elif self.clue_collect:
-            self.clue()
-            self.clue_collect = False
-        elif self.drone_room is not None:
-            self.drone(self.drone_room)
-            self.drone_room = None
-        elif self.arrange is not None:
-            self.agent_arrange(self.arrange)
-            self.arrange = None
         else:
             return True
 
@@ -118,7 +120,7 @@ class BaseConstructSolver(BaseSolver):
         self.find('clue_summary') and self.back()
 
         # 识别右侧按钮
-        (x0, y0), (x1, y1) = self.find('clue_func')
+        (x0, y0), (x1, y1) = self.find('clue_func', strict=True)
 
         logger.info('接收赠送线索')
         self.tap(((x0+x1)//2, (y0*3+y1)//4), interval=3, rebuild=False)
@@ -203,7 +205,7 @@ class BaseConstructSolver(BaseSolver):
         """ 识别阵营选择栏 """
         global x1, x2, y0, y1
 
-        (x1, y0), (x2, y1) = self.find('clue_nav')
+        (x1, y0), (x2, y1) = self.find('clue_nav', strict=True)
         while int(self.recog.img[y0, x1-1].max()) - int(self.recog.img[y0, x1].max()) <= 1:
             x1 -= 1
         while int(self.recog.img[y0, x2].max()) - int(self.recog.img[y0, x2-1].max()) <= 1:
@@ -328,7 +330,7 @@ class BaseConstructSolver(BaseSolver):
         """ 获取房间的位置并进入 """
 
         # 获取基建各个房间的位置
-        base_room = segment.base(self.recog.img, self.find('control_central'))
+        base_room = segment.base(self.recog.img, self.find('control_central', strict=True))
 
         # 将画面外的部分删去
         room = base_room[room]
@@ -339,7 +341,9 @@ class BaseConstructSolver(BaseSolver):
             room[i, 1] = min(room[i, 1], self.recog.h)
 
         # 点击进入
-        self.tap(room[0], interval=3, rebuild=False)
+        self.tap(room[0], interval=3)
+        while self.find('control_central') is not None:
+            self.tap(room[0], interval=3)
 
     def drone(self, room: str):
         logger.info('基建：无人机加速')
@@ -361,31 +365,41 @@ class BaseConstructSolver(BaseSolver):
         self.back(interval=2, rebuild=False)
         self.back(interval=2)
 
-    def choose_agent(self, agent: list[str]) -> None:
+    def choose_agent(self, agent: list[str], skip_free: int = 0) -> None:
         logger.info(f'安排干员：{agent}')
-        agent = set(agent)
-
-        # 滑动到最左边
+        logger.debug(f'skip_free: {skip_free}')
         h, w = self.recog.h, self.recog.w
-        for _ in range(9):
-            self.swipe((w//2, h//2), (w//2, 0), interval=0)
-        self.swipe((w//2, h//2), (w//2, 0), interval=3, rebuild=False)
+        first_time = True
 
-        checked = set()  # 已经识别过的干员
-        pre = set()  # 上次识别出的干员
-        error_count = 0
-        while True:
+        # 在 agent 中 'Free' 表示任意空闲干员
+        free_num = agent.count('Free')
+        agent = set(agent) - set(['Free'])
+
+        # 安排指定干员
+        if len(agent):
+
+            if not first_time:
+                # 滑动到最左边
+                for _ in range(9):
+                    self.swipe((w//2, h//2), (w//2, 0), interval=0)
+                self.swipe((w//2, h//2), (w//2, 0), interval=3, rebuild=False)
+            first_time = False
+
+            checked = set()  # 已经识别过的干员
+            pre = set()  # 上次识别出的干员
+            error_count = 0
 
             while len(agent):
                 try:
                     # 识别干员
-                    ret = segment.agent(self.recog.img)  # 返回的顺序是从左往右从上往下
+                    ret = character_recognize.agent(self.recog.img)  # 返回的顺序是从左往右从上往下
                 except RecognizeError as e:
-                    logger.warning(e)
                     error_count += 1
-                    if error_count >= 3:
+                    if error_count < 3:
+                        logger.debug(e)
+                        self.sleep(3)
+                    else:
                         raise e
-                    self.sleep(3)
                     continue
 
                 # 提取识别出来的干员的名字
@@ -394,7 +408,7 @@ class BaseConstructSolver(BaseSolver):
                     error_count += 1
                     if error_count >= 3:
                         logger.warning(f'未找到干员：{list(agent)}')
-                        return
+                        break
                 else:
                     pre = agent_name
 
@@ -405,16 +419,55 @@ class BaseConstructSolver(BaseSolver):
                 for name in agent_name & agent:
                     for y in ret:
                         if y[0] == name:
-                            self.tap((y[1][0]), rebuild=False)
+                            self.tap((y[1][0]), interval=0, rebuild=False)
                             break
                     agent.remove(name)
 
                 # 如果已经完成选择则退出
                 if len(agent) == 0:
-                    return
+                    break
 
                 st = ret[-2][1][2]  # 起点
                 ed = ret[0][1][1]   # 终点
+                self.swipe_noinertia(st, (ed[0]-st[0], 0))
+
+        # 安排空闲干员
+        if free_num:
+
+            if not first_time:
+                # 滑动到最左边
+                for _ in range(9):
+                    self.swipe((w//2, h//2), (w//2, 0), interval=0)
+                self.swipe((w//2, h//2), (w//2, 0), interval=3, rebuild=False)
+            first_time = False
+
+            error_count = 0
+
+            while free_num:
+                try:
+                    # 识别空闲干员
+                    ret, st, ed = segment.free_agent(self.recog.img)  # 返回的顺序是从左往右从上往下
+                except RecognizeError as e:
+                    error_count += 1
+                    if error_count < 3:
+                        logger.debug(e)
+                        self.sleep(3)
+                    else:
+                        raise e
+                    continue
+
+                while free_num and len(ret):
+                    if skip_free > 0:
+                        skip_free -= 1
+                    else:
+                        self.tap(ret[0], interval=0, rebuild=False)
+                        free_num -= 1
+                    ret = ret[1:]
+
+                # 如果已经完成选择则退出
+                if free_num == 0:
+                    break
+
                 self.swipe_noinertia(st, (ed[0]-st[0], 0))
 
     def agent_arrange(self, plan: tp.BasePlan) -> None:
@@ -424,15 +477,16 @@ class BaseConstructSolver(BaseSolver):
         # 进入进驻总览
         self.tap_element('infra_overview', interval=2)
 
-        # 滑动到最顶
-        h, w = self.recog.h, self.recog.w
-        for _ in range(4):
-            self.swipe((w//2, h//2), (0, h//2), interval=0)
-        self.swipe((w//2, h//2), (0, h//2), rebuild=False)
+        # 滑动到最顶（从首页进入默认最顶无需滑动）
+        # h, w = self.recog.h, self.recog.w
+        # for _ in range(4):
+        #     self.swipe((w//2, h//2), (0, h//2), interval=0)
+        # self.swipe((w//2, h//2), (0, h//2), rebuild=False)
 
         logger.info('撤下干员中……')
         idx = 0
         room_total = len(base_room_list)
+        need_empty = set(list(plan.keys()))
         while idx < room_total:
             # switch: 撤下干员按钮
             ret, switch, mode = segment.worker(self.recog.img)
@@ -448,16 +502,20 @@ class BaseConstructSolver(BaseSolver):
 
             for block in ret:
                 # 清空在换班计划中的房间
-                if base_room_list[idx] in plan.keys():
+                if base_room_list[idx] in need_empty:
+                    need_empty.remove(base_room_list[idx])
                     self.tap((block[2][0]-5, block[2][1]-5))
                     dc = self.find('double_confirm')
                     if dc is not None:
-                        self.tap((dc[1][0], (dc[0][1]+dc[1][1]) // 2),
-                                 rebuild=False)
+                        self.tap((dc[1][0], (dc[0][1]+dc[1][1]) // 2))
+                    while self.scene() == Scene.CONNECTING:
+                        self.sleep(3)
+                    if self.scene() != Scene.INFRA_ARRANGE:
+                        raise RecognizeError
                 idx += 1
 
             # 如果全部需要清空的房间都清空了就
-            if idx == room_total:
+            if idx == room_total or len(need_empty) == 0:
                 break
             block = ret[-1]
             top = switch[2][1]
@@ -472,8 +530,11 @@ class BaseConstructSolver(BaseSolver):
         logger.info('安排干员工作……')
         idx = 0
         room_total = len(base_room_list)
+        need_empty = set(list(plan.keys()))
         while idx < room_total:
             ret, switch, mode = segment.worker(self.recog.img)
+            if len(ret) == 0:
+                raise RecognizeError('未识别到进驻总览中的房间列表')
 
             # 关闭撤下干员按钮
             if mode:
@@ -485,19 +546,50 @@ class BaseConstructSolver(BaseSolver):
                 ret = ret[-(room_total-idx):]
 
             for block in ret:
-                if base_room_list[idx] in plan.keys():
+                if base_room_list[idx] in need_empty:
+                    need_empty.remove(base_room_list[idx])
                     # 对这个房间进行换班
-                    x = (7*block[0][0]+3*block[2][0])//10
-                    y = (block[0][1]+block[2][1])//2
-                    self.tap((x, y), rebuild=False)
-                    self.choose_agent(plan[base_room_list[idx]])
-                    self.recog.update()
-                    self.tap_element('comfirm_blue', detected=True,
-                                     judge=False, interval=3, rebuild=False)
+                    finished = False
+                    skip_free = 0
+                    error_count = 0
+                    while not finished:
+                        x = (7*block[0][0]+3*block[2][0])//10
+                        y = (block[0][1]+block[2][1])//2
+                        self.tap((x, y), rebuild=False)
+                        try:
+                            self.choose_agent(
+                                plan[base_room_list[idx]], skip_free)
+                        except RecognizeError as e:
+                            error_count += 1
+                            if error_count >= 3:
+                                raise e
+                            # 返回基建干员进驻总览
+                            self.recog.update()
+                            while self.scene() not in [Scene.INFRA_ARRANGE, Scene.INFRA_MAIN] and self.scene() // 100 != 1:
+                                pre_scene = self.scene()
+                                self.back(interval=3)
+                                if self.scene() == pre_scene:
+                                    break
+                            if self.scene() != Scene.INFRA_ARRANGE:
+                                raise e
+                            continue
+                        self.recog.update()
+                        self.tap_element(
+                            'comfirm_blue', detected=True, judge=False, interval=3)
+                        if self.scene() == Scene.INFRA_ARRANGE_CONFIRM:
+                            x = self.recog.w // 3
+                            y = self.recog.h - 10
+                            self.tap((x, y), rebuild=False)
+                            skip_free += plan[base_room_list[idx]].count('Free')
+                            self.back()
+                        else:
+                            finished = True
+                        while self.scene() == Scene.CONNECTING:
+                            self.sleep(3)
                 idx += 1
 
             # 换班结束
-            if idx == room_total:
+            if idx == room_total or len(need_empty) == 0:
                 break
             block = ret[-1]
             top = switch[2][1]
