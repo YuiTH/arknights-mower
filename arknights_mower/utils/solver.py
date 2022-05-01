@@ -116,24 +116,24 @@ class BaseSolver:
     def swipe(self, start: tp.Coordinate, movement: tp.Coordinate, duration: int = 100, interval: float = 1, rebuild: bool = True) -> None:
         """ swipe """
         end = (start[0] + movement[0], start[1] + movement[1])
-        self.device.swipe([start, end], duration=duration)
+        self.device.swipe(start, end, duration=duration)
         if interval > 0:
             self.sleep(interval, rebuild)
 
-    def swipe_seq(self, points: list[tp.Coordinate], duration: int = 100, interval: float = 1, rebuild: bool = True) -> None:
-        """ swipe with point sequence """
-        self.device.swipe(points, duration=duration)
-        if interval > 0:
-            self.sleep(interval, rebuild)
+    # def swipe_seq(self, points: list[tp.Coordinate], duration: int = 100, interval: float = 1, rebuild: bool = True) -> None:
+    #     """ swipe with point sequence """
+    #     self.device.swipe(points, duration=duration)
+    #     if interval > 0:
+    #         self.sleep(interval, rebuild)
 
-    def swipe_move(self, start: tp.Coordinate, movements: list[tp.Coordinate], duration: int = 100, interval: float = 1, rebuild: bool = True) -> None:
-        """ swipe with start and movement sequence """
-        points = [start]
-        for move in movements:
-            points.append((points[-1][0] + move[0], points[-1][1] + move[1]))
-        self.device.swipe(points, duration=duration)
-        if interval > 0:
-            self.sleep(interval, rebuild)
+    # def swipe_move(self, start: tp.Coordinate, movements: list[tp.Coordinate], duration: int = 100, interval: float = 1, rebuild: bool = True) -> None:
+    #     """ swipe with start and movement sequence """
+    #     points = [start]
+    #     for move in movements:
+    #         points.append((points[-1][0] + move[0], points[-1][1] + move[1]))
+    #     self.device.swipe(points, duration=duration)
+    #     if interval > 0:
+    #         self.sleep(interval, rebuild)
 
     def swipe_noinertia(self, start: tp.Coordinate, movement: tp.Coordinate, duration: int = 100, interval: float = 1, rebuild: bool = False) -> None:
         """ swipe with no inertia (movement should be vertical) """
@@ -148,8 +148,7 @@ class BaseSolver:
             points.append((start[0], start[1]+100))
             points.append((start[0]+movement[0], start[1]+100))
             points.append((start[0]+movement[0], start[1]))
-        self.device.minitouch.smooth_swipe(points, display_frames=self.device.display_frames(),
-                                           duration=[200, dis*duration//100, 200], up_wait=500)
+        self.device.swipe_ext(points, durations=[200, dis*duration//100, 200])
         if interval > 0:
             self.sleep(interval, rebuild)
 
@@ -202,6 +201,14 @@ class BaseSolver:
                     self.sleep(3)
                 elif self.scene() == Scene.CONFIRM:
                     self.tap(detector.confirm(self.recog.img))
+                elif self.scene() == Scene.LOGIN_MAIN_NOENTRY:
+                    self.sleep(3)
+                elif self.scene() == Scene.LOGIN_CADPA_DETAIL:
+                    self.back(2)
+                elif self.scene() == Scene.LOGIN_BILIBILI:
+                    self.tap_element('login_bilibili_entry')
+                elif self.scene() == Scene.NETWORK_CHECK:
+                    self.tap_element('double_confirm', 0.2)
                 elif self.scene() == Scene.UNKNOWN:
                     raise RecognizeError('Unknown scene')
                 else:
@@ -264,6 +271,8 @@ class BaseSolver:
                     self.tap((self.recog.w // 2, 10))
                 elif self.scene() == Scene.DOUBLE_CONFIRM:
                     self.tap_element('double_confirm', 0.8)
+                elif self.scene() == Scene.NETWORK_CHECK:
+                    self.tap_element('double_confirm', 0.2)
                 elif self.scene() == Scene.MAIL:
                     mail = self.find('mail')
                     mid_y = (mail[0][1] + mail[1][1]) // 2

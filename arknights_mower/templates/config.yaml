@@ -50,14 +50,18 @@ device:
   #   port: 5037
   #   timeout: 5
 
+  # 选择控制方式，，可选项为 [minitouch, scrcpy]，默认选择 scrcpy
+  # adb_control_client: scrcpy
+  # adb_control_client: minitouch  # Android 10 及以上不支持
+
   # 指定设备上的 Touch Device，若无则自动检测
-  # adb_touch_device: /dev/input/event4
+  # mnt_touch_device: /dev/input/event4
 
   # minitouch 使用的转发端口
-  # adb_mnt_port: 20937
+  # mnt_port: 20937
 
   # minitouch 兼容模式，当打开时, 用于处理在某些模拟器下无法正确处理分辨率和旋转的情况, 默认关闭
-  # compatibility_mode: false
+  # mnt_compatibility_mode: false
 
 account:
   # 账户以及密码
@@ -94,6 +98,7 @@ behavior:
   # TODO: 将-d33修改为希望的加速房间号
   per_hour:
     - base -c -d33
+    # - base -c -d33  # -c为自动收取基建并使用线索；-d33 为自动加速 B303 的建筑
     - recruit
 
   # 定时计划任务
@@ -129,7 +134,10 @@ priority:
 # 阶段 1 和 2 为第一班，阶段 3 和 4 为第二班
 # 第一班的干员在阶段 3 和 4 分两批休息，第二班同理
 # 每个阶段耗时 6 小时
-base_construct:
+
+# 若菲亚梅塔出现在列表中，则会优先选择菲亚梅塔，以防止其与意料之外的干员交换心情
+
+arrangement:
   plan_1:
     # 办公室
     contact:
