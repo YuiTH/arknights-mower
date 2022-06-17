@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-import sys
 import shutil
-from typing import Any
-from pathlib import Path
+import sys
 from collections import Mapping
+from pathlib import Path
+from typing import Any
+
 from ruamel.yaml.comments import CommentedSeq
 
+from .. import __pyinstall__, __rootdir__, __system__
 from . import typealias as tp
-from .. import __rootdir__, __system__, __pyinstall__
 from .yaml import yaml
 
 # The lowest version supported
@@ -31,8 +32,9 @@ def __dig_mapping(path: str):
             raise KeyError(path)
         current_map = current_map[k]
         if not isinstance(current_map, Mapping):
-            raise TypeError('config key %s is not a mapping' %
-                            '/'.join(path[:idx+1]))
+            raise TypeError(
+                'config key %s is not a mapping' % '/'.join(path[: idx + 1])
+            )
     return current_map, path[-1]
 
 
@@ -160,7 +162,7 @@ def init_config() -> None:
     OPE_TIMES = __get('operation/times', -1)
     OPE_POTION = __get('operation/potion', 0)
     OPE_ORIGINITE = __get('operation/originite', 0)
-    OPE_ELIMINATE = __get('operation/eliminate', False)
+    OPE_ELIMINATE = int(__get('operation/eliminate', 0))  # convert bool to int
     OPE_PLAN = __get('operation/plan', None)
     if OPE_PLAN is not None:
         OPE_PLAN = [x.split(',') for x in OPE_PLAN]

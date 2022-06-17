@@ -1,15 +1,14 @@
 from __future__ import annotations
-from abc import abstractmethod
 
 import time
 import traceback
+from abc import abstractmethod
 
-from . import config
-from . import detector
+from ..utils import typealias as tp
+from . import config, detector
 from .device import Device, KeyCode
 from .log import logger
-from .recognize import Recognizer, Scene, RecognizeError
-from ..utils import typealias as tp
+from .recognize import RecognizeError, Recognizer, Scene
 
 
 class StrategyError(Exception):
@@ -119,6 +118,13 @@ class BaseSolver:
         self.device.swipe(start, end, duration=duration)
         if interval > 0:
             self.sleep(interval, rebuild)
+
+    def swipe_only(self, start: tp.Coordinate, movement: tp.Coordinate, duration: int = 100, interval: float = 1) -> None:
+        """ swipe only, no rebuild and recapture """
+        end = (start[0] + movement[0], start[1] + movement[1])
+        self.device.swipe(start, end, duration=duration)
+        if interval > 0:
+            time.sleep(interval)
 
     # def swipe_seq(self, points: list[tp.Coordinate], duration: int = 100, interval: float = 1, rebuild: bool = True) -> None:
     #     """ swipe with point sequence """
